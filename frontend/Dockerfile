@@ -1,19 +1,31 @@
-FROM node:20-alpine AS build
+# Stage 1: Build React application
+FROM node:20 AS builder
 
 WORKDIR /app
 
+# Copy package configuration
 COPY package*.json ./
-RUN npm install
 
+# Install dependencies using lockfile
+RUN npm ci
+
+# Copy frontend source code
 COPY . .
+
+# Create production build
 RUN npm run build
 
-FROM nginx:1.27-alpine AS production
+# Stage 2: Production using Nginx
+FROM nginx:alpine
 
+# Copy production build files
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Configure Nginx
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
 
+# Expose frontend port
 EXPOSE 80
 
-HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
-  CMD wget -q -O /dev/null http://127.0.0.1/ || exit 1
+# Start Nginx
+CMD ["nginx", "-g", "daemon off;"]
